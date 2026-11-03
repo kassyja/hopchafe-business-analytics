@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HOP CHAFE Analytics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#F4F6FA; --card:#FFFFFF; --line:#E3E8F0; --ink:#1B2437; --mute:#6B7587;
+  --brand:#3B5BDB; --brand-soft:#EDF1FF; --good:#12B76A; --bad:#F04438; --warn:#F79009; --purple:#9B6BFF;
+  --r:12px; --sh:0 1px 3px rgba(27,36,55,.06);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:'Noto Sans Thai',Arial,sans-serif;font-size:15px;line-height:1.5;-webkit-tap-highlight-color:transparent}
+button{font-family:inherit;font-size:inherit;color:inherit;cursor:pointer}
+h1,h2,h3,p{margin:0}
+
+/* ล็อก PIN */
+#lock{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:999;padding:16px}
+.lock-box{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--sh);padding:28px;width:100%;max-width:340px;text-align:center}
+.lock-box h1{font-size:20px;font-weight:700;margin-bottom:4px}
+.lock-box p{color:var(--mute);margin-bottom:16px}
+.lock-box input{width:100%;text-align:center;font-size:26px;letter-spacing:10px;padding:12px;border:1px solid var(--line);border-radius:10px;font-family:inherit}
+.lock-box .err{color:var(--bad);min-height:22px;margin-top:8px;font-size:14px}
+.btn{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:8px 14px;font-weight:500;transition:.12s}
+.btn:hover{border-color:var(--brand);color:var(--brand)}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+.btn.primary:hover{background:#2F4AB8;color:#fff}
+.btn.sm{padding:5px 10px;font-size:13px}
+.btn.on{background:var(--brand-soft);border-color:var(--brand);color:var(--brand);font-weight:600}
+
+/* ส่วนหัว */
+.top{background:var(--card);border-bottom:1px solid var(--line);padding:12px 16px;position:sticky;top:0;z-index:30}
+.top-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;max-width:1280px;margin:0 auto}
+.brand{display:flex;align-items:center;gap:10px;margin-right:auto}
+.logo{width:34px;height:34px;border-radius:10px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700}
+.brand h1{font-size:17px;font-weight:700;line-height:1.2}
+.brand small{color:var(--mute);font-size:12px}
+.ctl{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.ctl input[type=date]{border:1px solid var(--line);border-radius:10px;padding:7px 10px;font-family:inherit;font-size:14px;background:#fff;color:var(--ink)}
+.upd{font-size:12px;color:var(--mute)}
+.sep{width:1px;height:24px;background:var(--line)}
+
+/* โครงหน้า */
+.layout{max-width:1280px;margin:0 auto;display:grid;grid-template-columns:200px 1fr;gap:16px;padding:16px}
+.nav{position:sticky;top:96px;align-self:start;display:flex;flex-direction:column;gap:4px}
+.nav button{text-align:left;border:none;background:transparent;border-radius:10px;padding:10px 12px;color:var(--mute);font-weight:500}
+.nav button:hover{background:#E9EEF8;color:var(--ink)}
+.nav button.on{background:var(--brand);color:#fff;font-weight:600}
+main{min-width:0}
+@media(max-width:900px){
+  .layout{grid-template-columns:1fr;padding:12px}
+  .nav{position:sticky;top:auto;flex-direction:row;overflow-x:auto;gap:6px;padding-bottom:4px;margin:0 -12px;padding-left:12px;padding-right:12px;background:var(--bg);z-index:20}
+  .nav button{white-space:nowrap;background:var(--card);border:1px solid var(--line)}
+  .top{position:static}
+}
+
+/* การ์ด */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh);padding:16px;margin-bottom:14px}
+.ch{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px}
+.ch h3{font-size:16px;font-weight:600}
+.ch p{color:var(--mute);font-size:13px}
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media(max-width:900px){.g2{grid-template-columns:1fr}}
+.kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;margin-bottom:14px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh);padding:14px}
+.kl{color:var(--mute);font-size:13px;display:flex;align-items:center;gap:6px}
+.kv{font-size:26px;font-weight:700;line-height:1.25;margin:2px 0}
+.kd{font-size:13px;color:var(--mute)}
+.up{color:var(--good);font-weight:600}.down{color:var(--bad);font-weight:600}
+.i{width:18px;height:18px;border-radius:50%;border:1px solid var(--line);background:#fff;color:var(--mute);font-size:11px;line-height:1;padding:0;font-style:italic;font-weight:700}
+.i:hover{border-color:var(--brand);color:var(--brand)}
+#tip{position:fixed;display:none;background:var(--ink);color:#fff;padding:8px 12px;border-radius:8px;font-size:13px;max-width:280px;z-index:500;box-shadow:0 4px 14px rgba(0,0,0,.2)}
+.chart{position:relative;height:300px}
+.chart.tall{height:380px}
+
+/* ตาราง */
+.tw{overflow:auto;max-height:420px;border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap;text-align:left}
+th{position:sticky;top:0;background:#F8FAFD;font-weight:600;cursor:pointer;user-select:none;z-index:1}
+th:hover{color:var(--brand)}
+td.n,th.n{text-align:right}
+tr:last-child td{border-bottom:none}
+
+/* ป้ายสถานะ */
+.tag{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600}
+.tag.good{background:#E7F8EF;color:#0A7F47}.tag.bad{background:#FEECEB;color:#B42318}.tag.warn{background:#FEF3E2;color:#B25E00}.tag.info{background:var(--brand-soft);color:var(--brand)}
+.state{text-align:center;padding:44px 16px;color:var(--mute)}
+.state .ic{font-size:34px;margin-bottom:6px}
+.state b{display:block;color:var(--ink);font-size:16px;margin-bottom:4px}
+.spin{width:34px;height:34px;border:4px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:sp .8s linear infinite;margin:0 auto 10px}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* Heatmap */
+.heat{overflow:auto}
+.heat table{border-collapse:separate;border-spacing:3px;width:auto;font-size:12px}
+.heat th{position:static;background:none;cursor:default;padding:2px 4px;text-align:center;color:var(--mute);font-weight:500}
+.heat td{width:34px;height:30px;padding:0;text-align:center;border:none;border-radius:6px;font-size:11px}
+.legend{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mute);margin-top:10px}
+.legend i{display:block;width:140px;height:10px;border-radius:5px;background:linear-gradient(90deg,#fff,#1E3A8A);border:1px solid var(--line)}
+
+/* ข้อสังเกต */
+.ins{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.ins:last-child{border-bottom:none}
+.ins .dot{flex:0 0 10px;height:10px;border-radius:50%;margin-top:8px;background:var(--brand)}
+.ins .dot.good{background:var(--good)}.ins .dot.bad{background:var(--bad)}.ins .dot.warn{background:var(--warn)}
+.ins b{font-weight:600}
+.ins small{display:block;color:var(--mute);font-size:12.5px;margin-top:2px}
+.note{background:#FEF3E2;border:1px solid #F9D9A6;color:#8A4B00;border-radius:10px;padding:10px 14px;font-size:13.5px;margin-bottom:14px}
+.leg{display:flex;flex-wrap:wrap;gap:12px;font-size:13px;color:var(--mute)}
+.leg span::before{content:'';display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;background:var(--c)}
+</style>
+</head>
+<body>
+
+<!-- ============ ล็อก PIN ============ -->
+<div id="lock">
+  <div class="lock-box">
+    <div class="logo" style="margin:0 auto 10px;width:46px;height:46px;font-size:20px">H</div>
+    <h1>HOP CHAFE Analytics</h1>
+    <p>กรอกรหัสเพื่อเข้าดูแดชบอร์ด</p>
+    <input id="pinInput" type="password" inputmode="numeric" maxlength="6" placeholder="••••" autocomplete="off">
+    <div class="err" id="pinErr"></div>
+    <button class="btn primary" id="pinBtn" style="width:100%;margin-top:6px">เข้าสู่ระบบ</button>
+  </div>
+</div>
+
+<div id="app" style="display:none">
+  <header class="top">
+    <div class="top-row">
+      <div class="brand">
+        <div class="logo">H</div>
+        <div><h1>HOP CHAFE Analytics</h1><small>วิเคราะห์ยอดขาย (อ่านอย่างเดียว)</small></div>
+      </div>
+      <div class="ctl" id="presetBtns">
+        <button class="btn sm" data-p="today">วันนี้</button>
+        <button class="btn sm" data-p="7">7 วัน</button>
+        <button class="btn sm" data-p="30">30 วัน</button>
+        <button class="btn sm" data-p="cycle">รอบบิล 26-25</button>
+      </div>
+      <div class="ctl">
+        <input type="date" id="dStart"><span style="color:var(--mute)">ถึง</span><input type="date" id="dEnd">
+      </div>
+      <div class="ctl" id="granBtns">
+        <button class="btn sm" data-g="day">รายวัน</button>
+        <button class="btn sm" data-g="week">รายสัปดาห์</button>
+        <button class="btn sm" data-g="month">รายเดือน</button>
+      </div>
+      <div class="ctl">
+        <button class="btn sm primary" id="refreshBtn">⟳ รีเฟรชข้อมูล</button>
+        <span class="upd" id="updText">ยังไม่ได้โหลด</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <nav class="nav" id="nav">
+      <button data-t="overview">📈 ภาพรวม</button>
+      <button data-t="products">🧋 สินค้า</button>
+      <button data-t="time">🕒 เวลา</button>
+      <button data-t="payment">💳 การชำระเงิน</button>
+      <button data-t="insights">💡 ข้อสังเกต</button>
+      <button data-t="quality">🛡️ คุณภาพข้อมูล</button>
+    </nav>
+    <main id="view"></main>
+  </div>
+</div>
+<div id="tip"></div>
+
+<script>
+/* =====================================================================
+   HOP CHAFE Analytics — แดชบอร์ดวิเคราะห์ยอดขาย (อ่านข้อมูลอย่างเดียว)
+   ---------------------------------------------------------------------
+   กฎ: ไฟล์นี้อ่าน Firebase เฉพาะ node "sales" ด้วย once('value') เท่านั้น
+       ไม่มีคำสั่งเขียน/ลบ/แก้ใดๆ ไม่อ่าน members / pointTx / config / stock
+       ฟิลด์ memberId, memberName, note ถูกทิ้งทันทีที่รับบิลมา
+   ===================================================================== */
+const PIN_CODE = '0000';   // <<< เปลี่ยนรหัสตรงนี้ก่อนใช้งานจริง
+
+const firebaseConfig = {
+  apiKey: "AIzaSyA5jVV1QIW9Yg0StcCbWJJoBSIUvk0Y7_g",
+  authDomain: "hopchafeposnong.firebaseapp.com",
+  databaseURL: "https://hopchafeposnong-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "hopchafeposnong",
+  storageBucket: "hopchafeposnong.firebasestorage.app",
+  messagingSenderId: "550804618797",
+  appId: "1:550804618797:web:74dce0a46a209eec7d02a4"
+};
+
+const TZ_MS = 7 * 3600 * 1000;           // Asia/Bangkok = UTC+7 (ไม่มี DST)
+const PALETTE = ['#3B5BDB','#12B76A','#F79009','#9B6BFF','#F04438','#0BA5EC','#EE46BC','#667085'];
+const C_CASH='#12B76A', C_TRANSFER='#3B5BDB', C_COD='#F79009', C_OTHER='#98A2B3', C_DRINK='#3B5BDB', C_TOP='#9B6BFF';
+const DOW_NAMES = ['จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์','อาทิตย์']; // จันทร์เป็นวันแรก
+
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const add = (arr, x) => { arr[arr.length] = x; return arr; };
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtN = (n, d = 0) => Number(n || 0).toLocaleString('th-TH', { minimumFractionDigits: d, maximumFractionDigits: d });
+const fmtB = (n, d = 0) => fmtN(n, d) + ' ฿';
+const pct = (a, b) => b > 0 ? (a / b * 100) : 0;
+
+/* ---------- วันที่ (เขตเวลา Asia/Bangkok) ---------- */
+const shifted = ts => new Date(ts + TZ_MS);
+const dateKey = ts => shifted(ts).toISOString().slice(0, 10);
+const dayStartMs = ymd => Date.parse(ymd + 'T00:00:00Z') - TZ_MS;
+const dayEndMs = ymd => dayStartMs(ymd) + 86400000 - 1;
+const addDays = (ymd, n) => new Date(Date.parse(ymd + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
+const diffDays = (a, b) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000);
+const todayYmd = () => dateKey(Date.now());
+const dowMon = ymd => (new Date(ymd + 'T00:00:00Z').getUTCDay() + 6) % 7;
+const weekKey = ymd => addDays(ymd, -dowMon(ymd));
+const monthKey = ymd => ymd.slice(0, 7);
+const THMON = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+const labelDay = ymd => { const p = ymd.split('-'); return Number(p[2]) + ' ' + THMON[Number(p[1]) - 1]; };
+const labelBucket = (k, g) => g === 'month' ? THMON[Number(k.slice(5, 7)) - 1] + ' ' + String((Number(k.slice(0, 4)) + 543)).slice(2) : (g === 'week' ? 'สัปดาห์ ' + labelDay(k) : labelDay(k));
+const bucketOf = (ymd, g) => g === 'month' ? monthKey(ymd) : (g === 'week' ? weekKey(ymd) : ymd);
+
+/* ---------- สถานะแอป ---------- */
+const state = {
+  start: '', end: '', gran: 'day', tab: 'overview', preset: '7',
+  bills: {},            // id -> บิลที่ทำความสะอาดแล้ว
+  loaded: [],           // ช่วงวันที่ที่โหลดแล้ว [[start,end],...]
+  lastUpdate: null, loading: false, error: null, fbReady: false
+};
+let charts = [];
+const tables = {};
+const tableSort = {};
+
+/* =====================================================================
+   ส่วนอ่านข้อมูล (อ่านอย่างเดียว) + ทำความสะอาด
+   ===================================================================== */
+let fbDb = null, authPromise = null;
+function initFirebase() {
+  if (fbDb) return;
+  firebase.initializeApp(firebaseConfig);
+  fbDb = firebase.database();
+  authPromise = firebase.auth().signInAnonymously();
+}
+
+// รับบิลดิบ -> เก็บเฉพาะฟิลด์ที่ใช้วิเคราะห์ (ทิ้ง memberId, memberName, note และอื่นๆ)
+function sanitize(raw, key) {
+  if (!raw || typeof raw !== 'object') return null;
+  const itemsRaw = Array.isArray(raw.items) ? raw.items : (raw.items && typeof raw.items === 'object' ? Object.values(raw.items) : []);
+  let ts = Date.parse(raw.datetime);
+  let tsFromId = false;
+  if (!isFinite(ts)) { ts = Number(raw.id != null ? raw.id : key); tsFromId = true; }
+  const b = {
+    id: String(raw.id != null ? raw.id : key),
+    queueNo: raw.queueNo != null ? raw.queueNo : null,
+    ts: ts,
+    payment: String(raw.payment || ''),
+    total: Number(raw.total),
+    codPending: raw.codPending === true,
+    codCash: Number(raw.codCash) || 0,
+    codTransfer: Number(raw.codTransfer) || 0,
+    cancelled: raw.cancelled === true,
+    estimated: false,
+    problems: [],
+    items: []
+  };
+  if (!isFinite(b.total) || b.total < 0) add(b.problems, 'ยอดรวมผิดปกติ');
+  if (!isFinite(b.ts)) add(b.problems, 'ไม่มีเวลาที่ใช้ได้');
+  if (tsFromId && isFinite(b.ts)) b.estimated = true;
+  if (!itemsRaw.length) add(b.problems, 'ไม่มีรายการสินค้า');
+
+  for (let i = 0; i < itemsRaw.length; i++) {
+    const it = itemsRaw[i] || {};
+    const qty = Number(it.qty);
+    if (!isFinite(qty) || qty <= 0) { add(b.problems, 'จำนวนแก้วผิดปกติ'); continue; }
+    let base, est = false;
+    if (isFinite(Number(it.baseTotal)) && it.baseTotal != null) base = Number(it.baseTotal);
+    else if (isFinite(Number(it.unitPrice)) && it.toppingsTotal != null && isFinite(Number(it.toppingsTotal))) { base = Number(it.unitPrice) * qty - Number(it.toppingsTotal); est = true; }
+    else { base = Number(it.lineTotal) || 0; est = true; }
+    let tops = [];
+    if (Array.isArray(it.toppingsDetail)) {
+      tops = it.toppingsDetail.map(t => ({ name: String(t.name || ''), price: Number(t.price) || 0, qty: Number(t.qty) || 1 }));
+    } else if (Array.isArray(it.toppings) && it.toppings.length) {
+      tops = it.toppings.map(n => ({ name: String(n), price: 0, qty: 1 })); est = true;   // ไม่รู้ราคา -> นับจำนวนอย่างเดียว
+    }
+    if (est) b.estimated = true;
+    add(b.items, { name: String(it.name || '(ไม่มีชื่อ)'), qty: qty, base: base, discount: Number(it.discount) || 0, tops: tops });
+  }
+  b.valid = b.problems.length === 0;
+  b.date = isFinite(b.ts) ? dateKey(b.ts) : '';
+  b.hour = isFinite(b.ts) ? shifted(b.ts).getUTCHours() : -1;
+  return b;
+}
+
+function covered(s, e) { return state.loaded.some(r => r[0] <= s && r[1] >= e); }
+
+async function ensureLoaded(force) {
+  const len = diffDays(state.start, state.end) + 1;
+  const needS = addDays(state.start, -len), needE = state.end;   // ช่วงปัจจุบัน + ช่วงก่อนหน้า (ความยาวเท่ากัน)
+  if (!force && covered(needS, needE)) return;
+  await authPromise;
+  // อ่านเฉพาะ node sales ตามช่วงเวลา (key = เวลา ms)
+  const snap = await fbDb.ref('sales').orderByKey().startAt(String(dayStartMs(needS))).endAt(String(dayEndMs(needE))).once('value');
+  const val = snap.val() || {};
+  if (force) {   // ล้างบิลในช่วงนี้ก่อน แล้วโหลดใหม่ให้ตรงกับของจริง
+    Object.keys(state.bills).forEach(k => { const d = state.bills[k].date; if (d >= needS && d <= needE) delete state.bills[k]; });
+  }
+  const arr = Array.isArray(val) ? val.map((v, i) => [String(i), v]).filter(x => x[1]) : Object.keys(val).map(k => [k, val[k]]);
+  arr.forEach(kv => { const b = sanitize(kv[1], kv[0]); if (b) state.bills[b.id] = b; });
+  state.loaded = state.loaded.concat([[needS, needE]]);
+  state.lastUpdate = new Date();
+}
+
+async function refresh(force) {
+  if (state.start > state.end) { const t = state.start; state.start = state.end; state.end = t; syncInputs(); }
+  state.loading = true; state.error = null; render();
+  try { await ensureLoaded(force); }
+  catch (e) { state.error = (e && e.message) ? e.message : String(e); }
+  state.loading = false; render();
+}
+
+/* =====================================================================
+   วิเคราะห์ข้อมูล
+   ===================================================================== */
+function stats(s, e) {
+  const o = {
+    s: s, e: e, counted: [], pending: [], cancelled: [], estimated: 0,
+    revenue: 0, cups: 0, discount: 0, discountCount: 0, baseRev: 0, topRev: 0, pendingAmt: 0,
+    byDay: {}, menus: {}, toppings: {}, lines: [],
+    hourRev: new Array(24).fill(0), hourBills: new Array(24).fill(0), hourCups: new Array(24).fill(0),
+    dowRev: new Array(7).fill(0), dowBills: new Array(7).fill(0), dowDays: [{}, {}, {}, {}, {}, {}, {}],
+    heat: [0, 1, 2, 3, 4, 5, 6].map(() => new Array(24).fill(0)),
+    pay: { cash: { n: 0, rev: 0 }, transfer: { n: 0, rev: 0 }, cod: { n: 0, rev: 0, cash: 0, transfer: 0 }, other: { n: 0, rev: 0 } }
+  };
+  Object.keys(state.bills).forEach(k => {
+    const b = state.bills[k];
+    if (!b.valid || b.date < s || b.date > e) return;
+    if (b.cancelled) { add(o.cancelled, b); return; }
+    if (b.codPending) { add(o.pending, b); o.pendingAmt += b.total; return; }
+    add(o.counted, b);
+    if (b.estimated) o.estimated++;
+    o.revenue += b.total;
+    const d = o.byDay[b.date] || (o.byDay[b.date] = { rev: 0, bills: 0, cups: 0 });
+    d.rev += b.total; d.bills++;
+    const dw = dowMon(b.date);
+    o.hourRev[b.hour] += b.total; o.hourBills[b.hour]++;
+    o.dowRev[dw] += b.total; o.dowBills[dw]++; o.dowDays[dw][b.date] = 1;
+    o.heat[dw][b.hour]++;
+    // วิธีชำระเงิน
+    const p = b.payment;
+    if (p === 'เงินสด') { o.pay.cash.n++; o.pay.cash.rev += b.total; }
+    else if (p.indexOf('โอน') === 0) { o.pay.transfer.n++; o.pay.transfer.rev += b.total; }
+    else if (p.indexOf('เก็บเงินปลายทาง') === 0) { o.pay.cod.n++; o.pay.cod.rev += b.total; o.pay.cod.cash += b.codCash; o.pay.cod.transfer += b.codTransfer; }
+    else { o.pay.other.n++; o.pay.other.rev += b.total; }
+    // รายการสินค้า
+    b.items.forEach(it => {
+      o.cups += it.qty; d.cups += it.qty; o.hourCups[b.hour] += it.qty;
+      o.baseRev += it.base;
+      if (it.discount > 0) { o.discount += it.discount; o.discountCount++; }
+      const m = o.menus[it.name] || (o.menus[it.name] = { qty: 0, rev: 0 });
+      m.qty += it.qty; m.rev += it.base;
+      add(o.lines, { date: b.date, name: it.name, qty: it.qty });
+      it.tops.forEach(t => {
+        const q = t.qty * it.qty, r = t.price * t.qty * it.qty;
+        const tt = o.toppings[t.name] || (o.toppings[t.name] = { qty: 0, rev: 0 });
+        tt.qty += q; tt.rev += r; o.topRev += r;
+      });
+    });
+  });
+  o.bills = o.counted.length;
+  o.aov = o.bills ? o.revenue / o.bills : 0;
+  o.avgCup = o.cups ? o.revenue / o.cups : 0;
+  return o;
+}
+
+function allDays(s, e) { const r = []; for (let d = s; d <= e; d = addDays(d, 1)) add(r, d); return r; }
+function bucketList(s, e, g) { const seen = {}, out = []; allDays(s, e).forEach(d => { const k = bucketOf(d, g); if (!seen[k]) { seen[k] = 1; add(out, k); } }); return out; }
+function dayStatsByBucket(o, g) {
+  const r = {};
+  Object.keys(o.byDay).forEach(d => { const k = bucketOf(d, g); const x = r[k] || (r[k] = { rev: 0, bills: 0, cups: 0 }); x.rev += o.byDay[d].rev; x.bills += o.byDay[d].bills; x.cups += o.byDay[d].cups; });
+  return r;
+}
+
+/* =====================================================================
+   ส่วนประกอบหน้าจอ
+   ===================================================================== */
+function delta(cur, prev, lowerIsBetter) {
+  if (!(prev > 0)) return '<span>เทียบช่วงก่อน: —</span>';
+  const ch = (cur - prev) / prev * 100;
+  const good = lowerIsBetter ? ch <= 0 : ch >= 0;
+  const arrow = ch >= 0 ? '▲' : '▼';
+  return '<span class="' + (good ? 'up' : 'down') + '">' + arrow + ' ' + fmtN(Math.abs(ch), 1) + '%</span> <span>เทียบช่วงก่อน</span>';
+}
+function kpi(label, value, sub, tip) {
+  return '<div class="kpi"><div class="kl">' + esc(label) + (tip ? '<button class="i" data-tip="' + esc(tip) + '">i</button>' : '') + '</div><div class="kv">' + value + '</div><div class="kd">' + sub + '</div></div>';
+}
+function cardStart(title, desc, right) {
+  return '<div class="card"><div class="ch"><div><h3>' + esc(title) + '</h3>' + (desc ? '<p>' + esc(desc) + '</p>' : '') + '</div>' + (right || '') + '</div>';
+}
+function chartBox(id, tall) { return '<div class="chart' + (tall ? ' tall' : '') + '"><canvas id="' + id + '"></canvas></div>'; }
+function mkChart(id, cfg) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  cfg.options = cfg.options || {};
+  cfg.options.responsive = true; cfg.options.maintainAspectRatio = false;
+  charts[charts.length] = new Chart(el, cfg);
+}
+function killCharts() { charts.forEach(c => c.destroy()); charts = []; }
+
+/* ตาราง: เรียงลำดับได้ + ส่งออก CSV */
+function tableCard(id, title, desc, cols, rows) {
+  tables[id] = { title: title, cols: cols, rows: rows };
+  return cardStart(title, desc, '<button class="btn sm" data-csv="' + id + '">⬇ ดาวน์โหลด CSV</button>') + '<div class="tw" id="tw-' + id + '">' + tableInner(id) + '</div></div>';
+}
+function tableInner(id) {
+  const t = tables[id]; let rows = t.rows.slice();
+  const so = tableSort[id];
+  if (so) { const c = t.cols[so.i]; rows.sort((a, b) => { const x = c.v(a), y = c.v(b); const r = (typeof x === 'number' && typeof y === 'number') ? x - y : String(x).localeCompare(String(y), 'th'); return so.asc ? r : -r; }); }
+  if (!rows.length) return '<div class="state" style="padding:24px">ไม่มีข้อมูลในช่วงนี้</div>';
+  let h = '<table><thead><tr>' + t.cols.map((c, i) => '<th class="' + (c.n ? 'n' : '') + '" data-sort="' + id + '|' + i + '">' + esc(c.l) + (so && so.i === i ? (so.asc ? ' ▲' : ' ▼') : '') + '</th>').join('') + '</tr></thead><tbody>';
+  rows.forEach(r => { h += '<tr>' + t.cols.map(c => '<td class="' + (c.n ? 'n' : '') + '">' + (c.f ? c.f(r) : esc(c.v(r))) + '</td>').join('') + '</tr>'; });
+  return h + '</tbody></table>';
+}
+function downloadCSV(id) {
+  const t = tables[id]; if (!t) return;
+  const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  let csv = t.cols.map(c => q(c.l)).join(',') + '\n';
+  t.rows.forEach(r => { csv += t.cols.map(c => q(c.v(r))).join(',') + '\n'; });
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'hopchafe_' + id + '_' + state.start + '_' + state.end + '.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/* =====================================================================
+   หน้าต่างๆ
+   ===================================================================== */
+function viewOverview(cur, prev) {
+  const g = state.gran;
+  let h = '<div class="kpis">' +
+    kpi('รายรับรวม', fmtB(cur.revenue), delta(cur.revenue, prev.revenue), 'ผลรวมยอดสุทธิ (total) ของบิลที่ไม่ถูกยกเลิกและไม่ได้ค้างเก็บเงินปลายทาง') +
+    kpi('จำนวนบิล', fmtN(cur.bills), delta(cur.bills, prev.bills), 'จำนวนบิลที่นับเป็นรายรับ') +
+    kpi('จำนวนแก้ว', fmtN(cur.cups), delta(cur.cups, prev.cups), 'ผลรวมจำนวน (qty) ของทุกรายการในบิลที่นับเป็นรายรับ') +
+    kpi('ยอดเฉลี่ยต่อบิล', fmtB(cur.aov, 2), delta(cur.aov, prev.aov), 'รายรับรวม ÷ จำนวนบิล') +
+    kpi('ราคาเฉลี่ยต่อแก้ว', fmtB(cur.avgCup, 2), delta(cur.avgCup, prev.avgCup), 'รายรับรวม ÷ จำนวนแก้ว (รวมท็อปปิ้งและหักส่วนลดแล้ว)') +
+    kpi('ส่วนลดคูปอง', fmtB(cur.discount), '<span>' + fmtN(cur.discountCount) + ' ครั้ง</span>', 'ผลรวมค่า discount ของรายการในบิลที่นับเป็นรายรับ') +
+    '</div>';
+  const bk = bucketList(state.start, state.end, g), ds = dayStatsByBucket(cur, g);
+  h += cardStart('รายรับตามช่วงเวลา', 'แท่งแต่ละอันคือรายรับรวมของ' + (g === 'day' ? 'วัน' : g === 'week' ? 'สัปดาห์ (เริ่มวันจันทร์)' : 'เดือน')) + chartBox('c_rev') + '</div>';
+  const rows = bk.map(k => ({ k: k, rev: (ds[k] || {}).rev || 0, bills: (ds[k] || {}).bills || 0, cups: (ds[k] || {}).cups || 0 }));
+  h += tableCard('overview', 'รายละเอียดตามช่วงเวลา', 'กดหัวตารางเพื่อเรียงลำดับ', [
+    { l: 'ช่วงเวลา', v: r => r.k, f: r => esc(labelBucket(r.k, g)) },
+    { l: 'จำนวนบิล', n: 1, v: r => r.bills, f: r => fmtN(r.bills) },
+    { l: 'จำนวนแก้ว', n: 1, v: r => r.cups, f: r => fmtN(r.cups) },
+    { l: 'รายรับ (฿)', n: 1, v: r => Math.round(r.rev * 100) / 100, f: r => fmtN(r.rev, 2) }
+  ], rows);
+  setTimeout(() => mkChart('c_rev', { type: 'bar', data: { labels: bk.map(k => labelBucket(k, g)), datasets: [{ label: 'รายรับ (฿)', data: rows.map(r => r.rev), backgroundColor: '#3B5BDB', borderRadius: 4 }] }, options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { callback: v => fmtN(v) } } } } }), 0);
+  return h;
+}
+
+function viewProducts(cur, prev) {
+  const g = state.gran;
+  const names = Object.keys(cur.menus);
+  const byQty = names.slice().sort((a, b) => cur.menus[b].qty - cur.menus[a].qty);
+  const byRev = names.slice().sort((a, b) => cur.menus[b].rev - cur.menus[a].rev);
+  const topNames = Object.keys(cur.toppings);
+  let h = '<div class="kpis">' +
+    kpi('จำนวนเมนูที่ขายได้', fmtN(names.length), '<span>เมนูที่มียอดขายในช่วงนี้</span>') +
+    kpi('เมนูขายดีที่สุด', byQty.length ? esc(byQty[0]) : '—', byQty.length ? '<span>' + fmtN(cur.menus[byQty[0]].qty) + ' แก้ว</span>' : '', 'เรียงตามจำนวนแก้ว') +
+    kpi('ยอดเครื่องดื่ม', fmtB(cur.baseRev), delta(cur.baseRev, prev.baseRev), 'ผลรวมยอดเครื่องดื่มก่อนท็อปปิ้ง (baseTotal) หลังหักส่วนลด') +
+    kpi('ยอดท็อปปิ้ง', fmtB(cur.topRev), delta(cur.topRev, prev.topRev), 'ผลรวม ราคาท็อปปิ้ง × จำนวนท็อปปิ้ง × จำนวนแก้ว') +
+    '</div>';
+  h += '<div class="grid g2">' +
+    cardStart('10 เมนูขายดี (ตามจำนวนแก้ว)', 'เมนูที่ขายได้จำนวนแก้วมากที่สุด') + chartBox('c_pq') + '</div>' +
+    cardStart('10 เมนูขายดี (ตามรายรับ)', 'เมนูที่สร้างยอดเครื่องดื่มสูงสุด (ไม่รวมท็อปปิ้ง)') + chartBox('c_pr') + '</div>' +
+    '</div>';
+  h += '<div class="grid g2">' +
+    cardStart('สัดส่วนเครื่องดื่ม vs ท็อปปิ้ง', 'แบ่งรายรับตามประเภทสินค้า') + chartBox('c_split') + '</div>' +
+    cardStart('แนวโน้ม 5 เมนูขายดี', 'จำนวนแก้วของแต่ละเมนูตามช่วงเวลา') + chartBox('c_trend') + '</div>' +
+    '</div>';
+  const totalRev = cur.baseRev;
+  h += tableCard('menus', 'ตารางเมนูทั้งหมด', 'สัดส่วน = รายรับเมนูนั้น ÷ ยอดเครื่องดื่มรวม', [
+    { l: 'เมนู', v: r => r.name },
+    { l: 'จำนวนแก้ว', n: 1, v: r => r.qty, f: r => fmtN(r.qty) },
+    { l: 'รายรับ (฿)', n: 1, v: r => Math.round(r.rev * 100) / 100, f: r => fmtN(r.rev, 2) },
+    { l: 'สัดส่วน (%)', n: 1, v: r => Math.round(pct(r.rev, totalRev) * 10) / 10, f: r => fmtN(pct(r.rev, totalRev), 1) + '%' }
+  ], names.map(n => ({ name: n, qty: cur.menus[n].qty, rev: cur.menus[n].rev })));
+  h += tableCard('toppings', 'ตารางท็อปปิ้ง', 'จำนวน = จำนวนท็อปปิ้งที่ขายได้ทั้งหมด', [
+    { l: 'ท็อปปิ้ง', v: r => r.name },
+    { l: 'จำนวน', n: 1, v: r => r.qty, f: r => fmtN(r.qty) },
+    { l: 'รายรับ (฿)', n: 1, v: r => Math.round(r.rev * 100) / 100, f: r => fmtN(r.rev, 2) }
+  ], topNames.map(n => ({ name: n, qty: cur.toppings[n].qty, rev: cur.toppings[n].rev })));
+  setTimeout(() => {
+    const t10q = byQty.slice(0, 10), t10r = byRev.slice(0, 10);
+    mkChart('c_pq', { type: 'bar', data: { labels: t10q, datasets: [{ data: t10q.map(n => cur.menus[n].qty), backgroundColor: '#3B5BDB', borderRadius: 4 }] }, options: { indexAxis: 'y', plugins: { legend: { display: false } } } });
+    mkChart('c_pr', { type: 'bar', data: { labels: t10r, datasets: [{ data: t10r.map(n => cur.menus[n].rev), backgroundColor: '#12B76A', borderRadius: 4 }] }, options: { indexAxis: 'y', plugins: { legend: { display: false } } } });
+    mkChart('c_split', { type: 'doughnut', data: { labels: ['เครื่องดื่ม', 'ท็อปปิ้ง'], datasets: [{ data: [cur.baseRev, cur.topRev], backgroundColor: [C_DRINK, C_TOP] }] }, options: { plugins: { legend: { position: 'bottom' } } } });
+    const top5 = byQty.slice(0, 5), bk = bucketList(state.start, state.end, g);
+    const ser = top5.map((n, i) => { const m = {}; cur.lines.forEach(l => { if (l.name === n) { const k = bucketOf(l.date, g); m[k] = (m[k] || 0) + l.qty; } }); return { label: n, data: bk.map(k => m[k] || 0), borderColor: PALETTE[i], backgroundColor: PALETTE[i], tension: .25, pointRadius: 2 }; });
+    mkChart('c_trend', { type: 'line', data: { labels: bk.map(k => labelBucket(k, g)), datasets: ser }, options: { plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true } } } });
+  }, 0);
+  return h;
+}
+
+function heatColor(v, max) {
+  if (!max || !v) return '#FFFFFF';
+  const t = Math.min(1, v / max);
+  const a = [255, 255, 255], b = [30, 58, 138];
+  const c = a.map((x, i) => Math.round(x + (b[i] - x) * t));
+  return 'rgb(' + c.join(',') + ')';
+}
+function viewTime(cur) {
+  let peakH = -1, peakV = 0;
+  cur.hourRev.forEach((v, i) => { if (v > peakV) { peakV = v; peakH = i; } });
+  let h = '<div class="kpis">' +
+    kpi('ชั่วโมงที่ขายดีที่สุด', peakH >= 0 ? String(peakH).padStart(2, '0') + ':00 น.' : '—', peakH >= 0 ? '<span>' + fmtB(peakV) + ' รวมทั้งช่วง</span>' : '', 'ชั่วโมงที่มีรายรับรวมสูงสุดในช่วงที่เลือก (เวลา Asia/Bangkok)') +
+    '</div>';
+  h += '<div class="grid g2">' +
+    cardStart('รายรับตามชั่วโมง', 'รายรับรวมของแต่ละชั่วโมงในวัน (0-23 น.)') + chartBox('c_hour') + '</div>' +
+    cardStart('รายรับตามวันในสัปดาห์', 'รายรับรวมของแต่ละวันในสัปดาห์') + chartBox('c_dow') + '</div>' +
+    '</div>';
+  let max = 0; cur.heat.forEach(r => r.forEach(v => { if (v > max) max = v; }));
+  h += cardStart('Heatmap ช่วงเวลาที่คนซื้อ', 'จำนวนบิลในแต่ละชั่วโมง × วันในสัปดาห์ ยิ่งเข้มยิ่งมีบิลมาก');
+  h += '<div class="heat"><table><thead><tr><th></th>';
+  for (let i = 0; i < 24; i++) h += '<th>' + i + '</th>';
+  h += '</tr></thead><tbody>';
+  for (let d = 0; d < 7; d++) {
+    h += '<tr><th style="text-align:right;white-space:nowrap">' + DOW_NAMES[d] + '</th>';
+    for (let i = 0; i < 24; i++) { const v = cur.heat[d][i]; h += '<td style="background:' + heatColor(v, max) + ';color:' + (v / (max || 1) > .5 ? '#fff' : '#1B2437') + '" title="' + DOW_NAMES[d] + ' ' + i + ':00 — ' + v + ' บิล">' + (v || '') + '</td>'; }
+    h += '</tr>';
+  }
+  h += '</tbody></table></div><div class="legend">น้อย <i></i> มาก (สูงสุด ' + fmtN(max) + ' บิลต่อช่อง)</div></div>';
+  h += tableCard('hours', 'รายละเอียดตามชั่วโมง', '', [
+    { l: 'ชั่วโมง', v: r => r.h, f: r => String(r.h).padStart(2, '0') + ':00' },
+    { l: 'จำนวนบิล', n: 1, v: r => r.b, f: r => fmtN(r.b) },
+    { l: 'จำนวนแก้ว', n: 1, v: r => r.c, f: r => fmtN(r.c) },
+    { l: 'รายรับ (฿)', n: 1, v: r => Math.round(r.r * 100) / 100, f: r => fmtN(r.r, 2) }
+  ], cur.hourRev.map((r, i) => ({ h: i, r: r, b: cur.hourBills[i], c: cur.hourCups[i] })));
+  h += tableCard('dow', 'รายละเอียดตามวันในสัปดาห์', 'เฉลี่ย/วัน = รายรับรวม ÷ จำนวนวันนั้นที่มีบิลจริง', [
+    { l: 'วัน', v: r => r.d, f: r => DOW_NAMES[r.d] },
+    { l: 'จำนวนวันที่มียอด', n: 1, v: r => r.nd, f: r => fmtN(r.nd) },
+    { l: 'จำนวนบิล', n: 1, v: r => r.b, f: r => fmtN(r.b) },
+    { l: 'รายรับรวม (฿)', n: 1, v: r => Math.round(r.r * 100) / 100, f: r => fmtN(r.r, 2) },
+    { l: 'เฉลี่ย/วัน (฿)', n: 1, v: r => Math.round(r.avg * 100) / 100, f: r => fmtN(r.avg, 2) }
+  ], [0, 1, 2, 3, 4, 5, 6].map(d => { const nd = Object.keys(cur.dowDays[d]).length; return { d: d, nd: nd, b: cur.dowBills[d], r: cur.dowRev[d], avg: nd ? cur.dowRev[d] / nd : 0 }; }));
+  setTimeout(() => {
+    mkChart('c_hour', { type: 'bar', data: { labels: cur.hourRev.map((_, i) => i + ':00'), datasets: [{ data: cur.hourRev, backgroundColor: '#3B5BDB', borderRadius: 3 }] }, options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { callback: v => fmtN(v) } } } } });
+    mkChart('c_dow', { type: 'bar', data: { labels: DOW_NAMES, datasets: [{ data: cur.dowRev, backgroundColor: '#12B76A', borderRadius: 4 }] }, options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { callback: v => fmtN(v) } } } } });
+  }, 0);
+  return h;
+}
+
+function viewPayment(cur, prev) {
+  const P = cur.pay;
+  const total = cur.revenue;
+  let h = '<div class="kpis">' +
+    kpi('เงินสด', fmtB(P.cash.rev), '<span>' + fmtN(P.cash.n) + ' บิล</span>') +
+    kpi('โอน/พร้อมเพย์', fmtB(P.transfer.rev), '<span>' + fmtN(P.transfer.n) + ' บิล</span>') +
+    kpi('เก็บเงินปลายทาง (รับแล้ว)', fmtB(P.cod.rev), '<span>' + fmtN(P.cod.n) + ' บิล</span>', 'บิลปลายทางที่ลงเงินเรียบร้อยแล้ว') +
+    kpi('รอเก็บเงินปลายทาง', '<span style="color:var(--warn)">' + fmtB(cur.pendingAmt) + '</span>', '<span>' + fmtN(cur.pending.length) + ' บิล (ยังไม่นับเป็นรายรับ)</span>', 'บิลปลายทางที่ยังไม่ได้ลงเงิน จะนับเป็นรายรับเมื่อลงเงินแล้วเท่านั้น') +
+    '</div>';
+  h += '<div class="grid g2">' +
+    cardStart('สัดส่วนรายรับตามวิธีชำระเงิน', 'แบ่งรายรับรวมตามช่องทางที่ลูกค้าจ่าย') + chartBox('c_pay') +
+    '<div class="leg" style="margin-top:8px"><span style="--c:' + C_CASH + '">เงินสด</span><span style="--c:' + C_TRANSFER + '">โอน</span><span style="--c:' + C_COD + '">ปลายทาง</span></div></div>' +
+    cardStart('ปลายทางที่รับแล้ว: แยกเงินสด/โอน', 'จากยอดที่ลงเงินจริงในบิลปลายทาง') + chartBox('c_cod') + '</div>' +
+    '</div>';
+  const rows = [
+    { n: 'เงินสด', b: P.cash.n, r: P.cash.rev }, { n: 'โอน/พร้อมเพย์', b: P.transfer.n, r: P.transfer.rev },
+    { n: 'เก็บเงินปลายทาง', b: P.cod.n, r: P.cod.rev }, { n: 'อื่นๆ', b: P.other.n, r: P.other.rev }
+  ];
+  h += tableCard('payment', 'สรุปตามวิธีชำระเงิน', 'สัดส่วน = รายรับของวิธีนั้น ÷ รายรับรวม', [
+    { l: 'วิธีชำระเงิน', v: r => r.n },
+    { l: 'จำนวนบิล', n: 1, v: r => r.b, f: r => fmtN(r.b) },
+    { l: 'รายรับ (฿)', n: 1, v: r => Math.round(r.r * 100) / 100, f: r => fmtN(r.r, 2) },
+    { l: 'สัดส่วน (%)', n: 1, v: r => Math.round(pct(r.r, total) * 10) / 10, f: r => fmtN(pct(r.r, total), 1) + '%' }
+  ], rows);
+  h += tableCard('pending', 'บิลปลายทางที่รอเก็บเงิน', 'ยังไม่ลงเงิน จึงยังไม่รวมในรายรับ', [
+    { l: 'ออเดอร์ที่', v: r => r.queueNo == null ? '' : r.queueNo },
+    { l: 'วันที่', v: r => r.date, f: r => esc(labelDay(r.date)) },
+    { l: 'ยอด (฿)', n: 1, v: r => r.total, f: r => fmtN(r.total, 2) }
+  ], cur.pending);
+  setTimeout(() => {
+    mkChart('c_pay', { type: 'doughnut', data: { labels: ['เงินสด', 'โอน', 'ปลายทาง', 'อื่นๆ'], datasets: [{ data: [P.cash.rev, P.transfer.rev, P.cod.rev, P.other.rev], backgroundColor: [C_CASH, C_TRANSFER, C_COD, C_OTHER] }] }, options: { plugins: { legend: { display: false } } } });
+    mkChart('c_cod', { type: 'bar', data: { labels: ['เงินสด', 'โอน'], datasets: [{ data: [P.cod.cash, P.cod.transfer], backgroundColor: [C_CASH, C_TRANSFER], borderRadius: 4 }] }, options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } } });
+  }, 0);
+  return h;
+}
+
+function viewInsights(cur, prev) {
+  const items = [];
+  const days = Object.keys(cur.byDay).sort();
+  const ins = (cls, text, how) => add(items, { cls: cls, text: text, how: how });
+  if (!cur.bills) return '<div class="card"><div class="state"><div class="ic">💡</div><b>ยังไม่มีข้อมูลพอสำหรับสรุป</b>เลือกช่วงวันที่ที่มียอดขายครับ</div></div>';
+
+  if (prev.revenue > 0) {
+    const ch = (cur.revenue - prev.revenue) / prev.revenue * 100;
+    ins(ch >= 0 ? 'good' : 'bad', 'รายรับรวม' + (ch >= 0 ? 'เพิ่มขึ้น ' : 'ลดลง ') + fmtN(Math.abs(ch), 1) + '% เทียบช่วงก่อนหน้า (' + fmtB(cur.revenue) + ' เทียบกับ ' + fmtB(prev.revenue) + ')', 'ช่วงก่อนหน้า = ช่วงที่มีจำนวนวันเท่ากันและอยู่ติดก่อนช่วงที่เลือก');
+  } else ins('warn', 'ไม่มีรายรับในช่วงก่อนหน้า จึงเทียบการเติบโตไม่ได้', 'ต้องมีรายรับช่วงก่อนหน้ามากกว่า 0');
+
+  if (days.length) {
+    let best = days[0], worst = days[0];
+    days.forEach(d => { if (cur.byDay[d].rev > cur.byDay[best].rev) best = d; if (cur.byDay[d].rev < cur.byDay[worst].rev) worst = d; });
+    ins('good', 'วันที่ยอดสูงสุดคือ ' + labelDay(best) + ' (' + DOW_NAMES[dowMon(best)] + ') รายรับ ' + fmtB(cur.byDay[best].rev), 'เลือกจากวันที่มีบิลในช่วงที่เลือก');
+    if (days.length > 1) ins('warn', 'วันที่ยอดต่ำสุด (ในวันที่มีบิล) คือ ' + labelDay(worst) + ' (' + DOW_NAMES[dowMon(worst)] + ') รายรับ ' + fmtB(cur.byDay[worst].rev), 'ไม่นับวันที่ไม่มีบิลเลย');
+  }
+  if (days.length >= 7) {
+    const v = days.map(d => cur.byDay[d].rev), mean = v.reduce((a, b) => a + b, 0) / v.length;
+    const sd = Math.sqrt(v.reduce((a, b) => a + (b - mean) * (b - mean), 0) / v.length);
+    const odd = sd > 0 ? days.filter(d => Math.abs(cur.byDay[d].rev - mean) > 2 * sd) : [];
+    if (odd.length) odd.forEach(d => ins(cur.byDay[d].rev > mean ? 'good' : 'bad', 'ยอดผิดปกติ: ' + labelDay(d) + ' ' + (cur.byDay[d].rev > mean ? 'สูง' : 'ต่ำ') + 'กว่าค่าเฉลี่ยมาก (' + fmtB(cur.byDay[d].rev) + ' เทียบค่าเฉลี่ย ' + fmtB(mean) + ')', 'ผิดปกติ = ห่างจากค่าเฉลี่ยรายวันเกิน 2 เท่าของส่วนเบี่ยงเบนมาตรฐาน (ใช้เมื่อมีข้อมูลตั้งแต่ 7 วัน)'));
+    else ins('good', 'ไม่พบวันที่ยอดผิดปกติชัดเจนในช่วงนี้', 'ผิดปกติ = ห่างจากค่าเฉลี่ยรายวันเกิน 2 เท่าของส่วนเบี่ยงเบนมาตรฐาน');
+  } else ins('warn', 'ข้อมูลน้อยกว่า 7 วัน จึงยังตรวจยอดผิดปกติไม่ได้', 'ต้องมีวันที่มีบิลอย่างน้อย 7 วัน');
+
+  let ph = -1, pv = 0; cur.hourRev.forEach((v, i) => { if (v > pv) { pv = v; ph = i; } });
+  if (ph >= 0) ins('', 'ชั่วโมงที่รายรับสูงสุดคือ ' + String(ph).padStart(2, '0') + ':00-' + String(ph + 1).padStart(2, '0') + ':00 น. (' + fmtB(pv) + ' รวมทั้งช่วง)', 'รวมรายรับทุกวันในช่วงที่เลือกแยกตามชั่วโมงของเวลาที่ออกบิล');
+  // วันในสัปดาห์ที่เฉลี่ยสูงสุด
+  let bd = -1, bv = 0; for (let d = 0; d < 7; d++) { const nd = Object.keys(cur.dowDays[d]).length; if (nd) { const a = cur.dowRev[d] / nd; if (a > bv) { bv = a; bd = d; } } }
+  if (bd >= 0) ins('', 'วัน' + DOW_NAMES[bd] + 'มียอดเฉลี่ยต่อวันสูงที่สุด (' + fmtB(bv) + ' ต่อวัน)', 'ยอดเฉลี่ย = รายรับรวมของวันนั้นในสัปดาห์ ÷ จำนวนวันนั้นที่มีบิลจริง');
+  const names = Object.keys(cur.menus).sort((a, b) => cur.menus[b].qty - cur.menus[a].qty);
+  if (names.length) ins('', 'เมนูขายดีที่สุดคือ "' + names[0] + '" ' + fmtN(cur.menus[names[0]].qty) + ' แก้ว (' + fmtN(pct(cur.menus[names[0]].qty, cur.cups), 1) + '% ของแก้วทั้งหมด)', 'จัดอันดับตามจำนวนแก้ว');
+  if (cur.pending.length) ins('warn', 'มีบิลปลายทางรอเก็บเงิน ' + fmtN(cur.pending.length) + ' บิล รวม ' + fmtB(cur.pendingAmt) + ' ยังไม่นับเป็นรายรับ', 'บิลที่ codPending = true');
+  if (cur.cancelled.length) ins('bad', 'มีบิลที่ถูกยกเลิก ' + fmtN(cur.cancelled.length) + ' บิล ไม่นับในรายรับ', 'บิลที่ cancelled = true');
+
+  let h = '<div class="note">ข้อสังเกตทุกข้อคำนวณจากข้อมูลบิลจริงในช่วงที่เลือก พร้อมบอกวิธีคิดใต้ข้อความ</div>' + cardStart('ข้อสังเกตอัตโนมัติ', 'ช่วง ' + labelDay(state.start) + ' ถึง ' + labelDay(state.end));
+  items.forEach(x => { h += '<div class="ins"><div class="dot ' + x.cls + '"></div><div><b>' + esc(x.text) + '</b><small>วิธีคิด: ' + esc(x.how) + '</small></div></div>'; });
+  return h + '</div>';
+}
+
+function viewQuality(cur) {
+  const all = Object.keys(state.bills).map(k => state.bills[k]);
+  const invalid = all.filter(b => !b.valid);
+  const inRange = all.filter(b => b.valid && b.date >= state.start && b.date <= state.end);
+  let h = '<div class="note">หน้านี้แสดงว่าตัวเลขเชื่อถือได้แค่ไหน ข้อมูลบิลที่ผิดปกติไม่ถูกลบหรือแก้ไข แต่จะถูกแยกออกจากการคำนวณและแสดงไว้ที่นี่</div>';
+  h += '<div class="kpis">' +
+    kpi('บิลที่โหลดแล้ว (ทั้งหมด)', fmtN(all.length), '<span>ในหน่วยความจำของหน้านี้</span>') +
+    kpi('บิลในช่วงที่เลือก', fmtN(inRange.length), '<span>นับรายรับ ' + fmtN(cur.bills) + ' • รอเก็บ ' + fmtN(cur.pending.length) + ' • ยกเลิก ' + fmtN(cur.cancelled.length) + '</span>') +
+    kpi('บิลที่ใช้ค่าประมาณ', '<span style="color:var(--warn)">' + fmtN(cur.estimated) + '</span>', '<span>ในช่วงที่เลือก</span>', 'บิลเก่าที่ขาดฟิลด์ (baseTotal, toppingsDetail ฯลฯ) ระบบประมาณยอดเครื่องดื่ม/ท็อปปิ้งให้ ยอดรวมของบิลยังเป็นค่าจริง') +
+    kpi('บิลที่ข้อมูลผิดปกติ', '<span style="color:' + (invalid.length ? 'var(--bad)' : 'var(--good)') + '">' + fmtN(invalid.length) + '</span>', '<span>ถูกแยกออกจากการคำนวณ</span>') +
+    '</div>';
+  h += cardStart('ช่วงข้อมูลที่โหลดแล้ว', 'ช่วงวันที่ที่ดึงจาก Firebase มาแล้วในหน้านี้ (รวมช่วงก่อนหน้าที่ใช้เปรียบเทียบ)');
+  h += state.loaded.length ? '<ul style="margin:0;padding-left:20px">' + state.loaded.map(r => '<li>' + esc(r[0]) + ' ถึง ' + esc(r[1]) + '</li>').join('') + '</ul>' : '<p>ยังไม่ได้โหลด</p>';
+  h += '</div>';
+  h += cardStart('การป้องกันข้อมูลส่วนตัวและความปลอดภัย') +
+    '<ul style="margin:0;padding-left:20px;line-height:1.9"><li><span class="tag good">อ่านอย่างเดียว</span> โค้ดไม่มีคำสั่งเขียน/ลบ/แก้ข้อมูล</li>' +
+    '<li><span class="tag good">เฉพาะ sales</span> ไม่อ่าน members, pointTx, config, stock, menuImages</li>' +
+    '<li><span class="tag good">ทิ้งข้อมูลลูกค้า</span> memberId, memberName, note ถูกทิ้งทันทีที่รับบิล ไม่เก็บ ไม่แสดง</li>' +
+    '<li><span class="tag warn">ข้อจำกัด</span> ไม่มีฟิลด์ช่องทางขาย (หน้าร้าน/เดลิเวอรี่) ไม่มีข้อมูลต้นทุน และไม่มีข้อมูลคืนเงิน จึงไม่แสดงสิ่งเหล่านี้</li></ul></div>';
+  h += tableCard('invalid', 'บิลที่ข้อมูลผิดปกติ', 'ถูกแยกออกจากการคำนวณทั้งหมด', [
+    { l: 'เลขบิล', v: r => r.id },
+    { l: 'วันที่', v: r => r.date || '-' },
+    { l: 'ปัญหา', v: r => r.problems.filter((x, i, a) => a.indexOf(x) === i).join(', ') }
+  ], invalid);
+  return h;
+}
+
+/* =====================================================================
+   วาดหน้า
+   ===================================================================== */
+function render() {
+  killCharts();
+  $$('#nav button').forEach(b => b.classList.toggle('on', b.dataset.t === state.tab));
+  $$('#presetBtns button').forEach(b => b.classList.toggle('on', b.dataset.p === state.preset));
+  $$('#granBtns button').forEach(b => b.classList.toggle('on', b.dataset.g === state.gran));
+  $('#updText').textContent = state.lastUpdate ? 'อัปเดตล่าสุด ' + state.lastUpdate.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'ยังไม่ได้โหลด';
+  const v = $('#view');
+  if (state.loading) { v.innerHTML = '<div class="card"><div class="state"><div class="spin"></div><b>กำลังโหลดข้อมูลยอดขาย...</b>ถ้านานเกินไป ลองกดรีเฟรชอีกครั้ง</div></div>'; return; }
+  if (state.error) { v.innerHTML = '<div class="card"><div class="state"><div class="ic">⚠️</div><b>โหลดข้อมูลไม่สำเร็จ</b>' + esc(state.error) + '<br>ตรวจสอบอินเทอร์เน็ตแล้วกด "รีเฟรชข้อมูล"</div></div>'; return; }
+  if (!state.loaded.length) { v.innerHTML = ''; return; }
+  const len = diffDays(state.start, state.end) + 1;
+  const cur = stats(state.start, state.end), prev = stats(addDays(state.start, -len), addDays(state.start, -1));
+  if (!cur.bills && !cur.pending.length && !cur.cancelled.length && state.tab !== 'quality') {
+    v.innerHTML = '<div class="card"><div class="state"><div class="ic">📭</div><b>ไม่มีข้อมูลยอดขายในช่วงนี้</b>ลองเลือกช่วงวันที่อื่น หรือกดรีเฟรชข้อมูล</div></div>'; return;
+  }
+  let h = '';
+  if (state.tab === 'overview') h = viewOverview(cur, prev);
+  else if (state.tab === 'products') h = viewProducts(cur, prev);
+  else if (state.tab === 'time') h = viewTime(cur);
+  else if (state.tab === 'payment') h = viewPayment(cur, prev);
+  else if (state.tab === 'insights') h = viewInsights(cur, prev);
+  else h = viewQuality(cur);
+  v.innerHTML = h;
+}
+
+/* =====================================================================
+   ตัวควบคุม
+   ===================================================================== */
+function syncInputs() { $('#dStart').value = state.start; $('#dEnd').value = state.end; }
+function applyPreset(p) {
+  const t = todayYmd();
+  state.preset = p;
+  if (p === 'today') { state.start = t; state.end = t; }
+  else if (p === '7') { state.start = addDays(t, -6); state.end = t; }
+  else if (p === '30') { state.start = addDays(t, -29); state.end = t; }
+  else {   // รอบบิล 26-25 ที่ครอบคลุมวันนี้
+    const y = Number(t.slice(0, 4)), m = Number(t.slice(5, 7)), d = Number(t.slice(8, 10));
+    const sm = d >= 26 ? new Date(Date.UTC(y, m - 1, 26)) : new Date(Date.UTC(y, m - 2, 26));
+    const em = new Date(Date.UTC(sm.getUTCFullYear(), sm.getUTCMonth() + 1, 25));
+    state.start = sm.toISOString().slice(0, 10); state.end = em.toISOString().slice(0, 10);
+  }
+  syncInputs();
+  refresh(false);
+}
+
+function startApp() {
+  $('#lock').style.display = 'none'; $('#app').style.display = 'block';
+  try { sessionStorage.setItem('hc_ok', '1'); } catch (e) {}
+  try { initFirebase(); } catch (e) { state.error = 'เริ่มระบบเชื่อมต่อไม่สำเร็จ: ' + e.message; render(); return; }
+  applyPreset('7');
+}
+function tryPin() {
+  if ($('#pinInput').value === PIN_CODE) startApp();
+  else { $('#pinErr').textContent = 'รหัสไม่ถูกต้อง'; $('#pinInput').value = ''; $('#pinInput').focus(); }
+}
+$('#pinBtn').onclick = tryPin;
+$('#pinInput').addEventListener('keydown', e => { if (e.key === 'Enter') tryPin(); });
+
+$('#nav').onclick = e => { const b = e.target.closest('button'); if (!b) return; state.tab = b.dataset.t; render(); window.scrollTo(0, 0); };
+$('#presetBtns').onclick = e => { const b = e.target.closest('button'); if (b) applyPreset(b.dataset.p); };
+$('#granBtns').onclick = e => { const b = e.target.closest('button'); if (b) { state.gran = b.dataset.g; render(); } };
+$('#dStart').onchange = $('#dEnd').onchange = () => { if (!$('#dStart').value || !$('#dEnd').value) return; state.start = $('#dStart').value; state.end = $('#dEnd').value; state.preset = ''; refresh(false); };
+$('#refreshBtn').onclick = () => refresh(true);
+
+document.addEventListener('click', e => {
+  const tip = $('#tip');
+  const ib = e.target.closest('.i');
+  if (ib) {
+    const r = ib.getBoundingClientRect();
+    tip.textContent = ib.dataset.tip; tip.style.display = 'block';
+    tip.style.top = (r.bottom + 6) + 'px'; tip.style.left = Math.max(8, Math.min(window.innerWidth - 290, r.left - 40)) + 'px';
+    return;
+  }
+  tip.style.display = 'none';
+  const th = e.target.closest('th[data-sort]');
+  if (th) {
+    const p = th.dataset.sort.split('|'), id = p[0], i = Number(p[1]);
+    const cur = tableSort[id];
+    tableSort[id] = { i: i, asc: cur && cur.i === i ? !cur.asc : false };
+    const box = document.getElementById('tw-' + id); if (box) box.innerHTML = tableInner(id);
+    return;
+  }
+  const cb = e.target.closest('[data-csv]');
+  if (cb) downloadCSV(cb.dataset.csv);
+});
+
+try { if (sessionStorage.getItem('hc_ok') === '1') startApp(); } catch (e) {}
+</script>
+</body>
+</html>
